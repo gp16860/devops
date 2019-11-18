@@ -1,5 +1,6 @@
 #!/bin/bash
- 
+
+#修改ip地址
 kubeadm init --kubernetes-version=1.14.0 --apiserver-advertise-address=192.168.2.14 --pod-network-cidr=10.244.0.0/16
 
 #执行输出 kubeadm join 请拷贝
@@ -16,4 +17,3 @@ docker pull calico/kube-controllers:v3.9.3
 
 kubectl apply -f https://docs.projectcalico.org/v3.9/manifests/calico.yaml
 
-kubectl get nodes -w
