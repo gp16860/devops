@@ -1,0 +1,337 @@
+一、k8s安装硬件配置要求：
+1.vm机器安装，宿主机配置：最低配置 4核8线程，i5-7500,8G内存，80G硬盘空间，不然跑起来，有点蜗牛。
+2.单独主机：三台机器配置：最低配置2核，2G内存，20G硬盘空间。
+
+二、虚拟机的软件的选择（单机的不需要考虑，有钱任性）
+1.宿主机，安装可以选择VMware Workstation Pro 12版本，可能有些组件收费。
+2.宿主机，安装 vagrant+virtual box
+3.系统请选择centos/7(最小安装)的裸机,不装任何软件。
+4.安装centos/7步骤：
+ 1）VMware Workstation Pro 安装：准备好centos/7的镜像文件.iso文件，操作很简单。 
+ 2）vagrant +virtual box安装
+ 安装vagrant，virtual box软件
+ 打开virtual box 界面-> 设置-> 常规->高级->指定备份位置（安装系统所在的文件d:\vm）否则会默认在c:\系统盘中
+ 在你选择文件下创建文件（kubernets-master） 宿主机window10
+ win+r ->cmd->回车
+ d: 回车
+ cd d:\vm\kubernets-master 回车
+ 
+ vagrant init Centos/7   创建vagrantfile 
+
+vagrant up 下载很慢，先执行，出现  .box的地址，然后复制地址，下载下来（f:\docker\CentOS-7-x86_64-Vagrant-1905_01.VirtualBox.box）。
+ctr+c
+
+创建：
+vagrant box add centos/k8s-manager f:\docker\CentOS-7-x86_64-Vagrant-1905_01.VirtualBox.box
+
+vagrant box lst  查看
+
+vagrant init centos/k8s-manager  初始化，生成Vagrantfile
+
+vagrant up  安装centos/7系统
+
+
+修改  vagrantfile
+打开 config.vm.network "public_network"  去掉#
+
+  config.vm.provider "virtualbox" do |vb|
+  #   # Display the VirtualBox GUI when booting the machine
+  #   vb.gui = true
+  #
+  #   # Customize the amount of memory on the VM:
+   vb.memory = "2048"
+	 vb.cpus=2
+	 vb.name="k8s-manager"  #虚拟机名称
+   end
+
+保存
+
+注意：
+vb.name 不能存在 /
+.box文件不能存在空格或者中文等
+
+vagrant reload   重新加载
+
+vagrant ssh  进入centos7系统
+
+sudo -i  切换账号root
+
+vi /etc/ssh/sshd_config  修改   PasswordAuthentication yes  保存退出
+
+passwd  修改root账号密码
+
+systemctl restart sshd   一定要重启
+
+通过远程可以访问 该虚拟主机的 ssh  直连接宿主机ip+端口
+
+vi /etc/sysconfig/network-scripts/ifcfg-eth1
+
+修改信息：
+BOOTPROTO=static
+
+增加信息：
+IPADDR=192.168.2.14
+NETMASK=255.255.255.0
+GATEWAY=192.168.2.1
+DNS1=192.168.2.1
+
+保存退出
+systemctl restart network  执行两次，
+ip a  查看eth1的ip地址是否已经刷新，与设置的一致。
+
+通过ip + port(22)访问。
+
+其他两台，创建文件夹kubernets-node1,kubernets-node2,在不同文件下创建 box 名称为  centos/k8s-node1  centos/k8s-node2
+vagrant box add centos/k8s-manager f:\docker\CentOS-7-x86_64-Vagrant-1905_01.VirtualBox.box
+vagrant init centos/k8s-manager
+
+centos/k8s-manager 替换 centos/k8s-node1/centos/k8s-node2 其他安装前面执行，修改ip
+
+三、安装需要的软件
+更新yum源
+yum -y update  
+
+安装依赖
+yum install -y conntrack ipvsadm ipset jq sysstat curl iptables libseccomp wget
+
+配置镜像用到
+sudo yum install -y yum-utils \
+    device-mapper-persistent-data \
+    lvm2
+    
+    
+设置docker仓库
+	sudo yum-config-manager --add-repo http://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo
+	
+【设置要设置一下阿里云镜像加速器】 自己在阿里云注册账号，在服务镜像下就有，免费的。
+
+sudo mkdir -p /etc/docker
+sudo tee /etc/docker/daemon.json <<-'EOF'
+{
+  "registry-mirrors": ["这边替换成自己的实际地址"]
+}
+EOF
+ 
+
+重新加载
+sudo systemctl daemon-reload
+
+ 安装docker,指定版本，其他版本将有坑。
+  yum install -y docker-ce-18.09.0 docker-ce-cli-18.09.0 containerd.io
+
+启动docker
+sudo systemctl start docker && sudo systemctl enable docker
+
+docker --version
+Docker version 18.09.0, build 4d60db4  安装成功
+
+四、安装k8s集群
+
+1.修改三台虚拟机器的hosts
+
+k8s-manager 修改
+sudo hostnamectl set-hostname m
+
+vi /etc/hosts
+192.168.2.14 m
+192.168.2.16 w1
+192.168.2.17 w2
+
+k8s-node1修改
+sudo hostnamectl set-hostname w1
+
+vi /etc/hosts
+192.168.2.14 m
+192.168.2.16 w1
+192.168.2.17 w2
+
+k8s-node2修改
+sudo hostnamectl set-hostname w2
+
+vi /etc/hosts
+192.168.2.14 m
+192.168.2.16 w1
+192.168.2.17 w2
+
+在任何一台虚拟机 ping 别名 是否可通？
+
+2.关闭系统设置
+
+关闭防火墙
+systemctl stop firewalld && systemctl disable firewalld
+
+关闭selinux
+setenforce 0
+sed -i 's/^SELINUX=enforcing$/SELINUX=permissive/' /etc/selinux/config
+
+关闭swap
+swapoff -a
+sed -i '/swap/s/^\(.*\)$/#\1/g' /etc/fstab
+
+配置iptables的ACCEPT规则
+iptables -F && iptables -X && iptables -F -t nat && iptables -X -t nat && iptables -P FORWARD ACCEPT
+
+设置系统参数
+cat <<EOF >  /etc/sysctl.d/k8s.conf
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-iptables = 1
+EOF
+
+sysctl --system
+
+3.安装kubeadm, kubelet and kubectl
+
+配置yum源
+cat <<EOF > /etc/yum.repos.d/kubernetes.repo
+[kubernetes]
+name=Kubernetes
+baseurl=http://mirrors.aliyun.com/kubernetes/yum/repos/kubernetes-el7-x86_64
+enabled=1
+gpgcheck=0
+repo_gpgcheck=0
+gpgkey=http://mirrors.aliyun.com/kubernetes/yum/doc/yum-key.gpg
+       http://mirrors.aliyun.com/kubernetes/yum/doc/rpm-package-key.gpg
+EOF
+
+安装 指定版本对应
+yum install -y kubeadm-1.14.0-0 kubelet-1.14.0-0 kubectl-1.14.0-0
+
+4.docker和k8s设置同一个cgroup
+# docker
+vi /etc/docker/daemon.json
+    "exec-opts": ["native.cgroupdriver=systemd"],
+    
+systemctl restart docker
+    
+# kubelet，这边如果发现输出directory not exist，也说明是没问题的，大家继续往下进行即可
+sed -i "s/cgroup-driver=systemd/cgroup-driver=cgroupfs/g" /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
+	
+systemctl enable kubelet && systemctl start kubelet
+
+5.拉取国外镜像，并打上tag，删除原来镜像，创建脚本来执行
+需要镜像如下
+k8s.gcr.io/kube-apiserver:v1.14.0
+k8s.gcr.io/kube-controller-manager:v1.14.0
+k8s.gcr.io/kube-scheduler:v1.14.0
+k8s.gcr.io/kube-proxy:v1.14.0
+k8s.gcr.io/pause:3.1
+k8s.gcr.io/etcd:3.3.10
+k8s.gcr.io/coredns:1.3.1
+
+
+创建sh脚本
+vi kubeadm.sh
+
+复制代码，保存退出
+
+#!/bin/bash
+
+set -e
+
+KUBE_VERSION=v1.14.0
+KUBE_PAUSE_VERSION=3.1
+ETCD_VERSION=3.3.10
+CORE_DNS_VERSION=1.3.1
+
+GCR_URL=k8s.gcr.io
+ALIYUN_URL=registry.cn-hangzhou.aliyuncs.com/google_containers
+
+images=(kube-proxy:${KUBE_VERSION}
+kube-scheduler:${KUBE_VERSION}
+kube-controller-manager:${KUBE_VERSION}
+kube-apiserver:${KUBE_VERSION}
+pause:${KUBE_PAUSE_VERSION}
+etcd:${ETCD_VERSION}
+coredns:${CORE_DNS_VERSION})
+
+for imageName in ${images[@]} ; do
+  docker pull $ALIYUN_URL/$imageName
+  docker tag  $ALIYUN_URL/$imageName $GCR_URL/$imageName
+  docker rmi $ALIYUN_URL/$imageName
+done
+
+执行
+sh ./kubeadm.sh
+
+需要等待三台虚拟机全部拉取完成，在执行第六步，否则坑坑坑。
+
+6.初始化master节点,只需要在manager上执行
+
+官网：https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm/
+第5步拉取的7个镜像查看下
+docker images
+
+REPOSITORY                           TAG                 IMAGE ID            CREATED             SIZE
+k8s.gcr.io/kube-proxy                v1.14.0             5cd54e388aba        7 months ago        82.1MB
+k8s.gcr.io/kube-controller-manager   v1.14.0             b95b1efa0436        7 months ago        158MB
+k8s.gcr.io/kube-apiserver            v1.14.0             ecf910f40d6e        7 months ago        210MB
+k8s.gcr.io/kube-scheduler            v1.14.0             00638a24688b        7 months ago        81.6MB
+k8s.gcr.io/coredns                   1.3.1               eb516548c180        10 months ago       40.3MB
+k8s.gcr.io/etcd                      3.3.10              2c4adeb21b4f        11 months ago       258MB
+k8s.gcr.io/pause                     3.1                 da86e6ba6ca1        23 months ago       742kB
+
+ 
+执行，注意修改ip地址
+kubeadm init --kubernetes-version=1.14.0 --apiserver-advertise-address=192.168.2.14 --pod-network-cidr=10.244.0.0/16
+【若要重新初始化集群状态：kubeadm reset，然后再进行上述操作】
+
+保存好最后kubeadm join的信息，执行输出信息的三行命令
+
+kubeadm join 192.168.2.14:6443 --token kffmci.7gpim50adxzewwcs \
+    --discovery-token-ca-cert-hash sha256:31220696c0c368e42ce8f88d74c9b486aa5072824b529367d0f7f3aca39f0c53 
+
+
+mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/
+
+检查pods   coredns没有启动，需要安装网络插件
+
+kubectl get pods -n kube-system
+
+
+检查心跳
+curl -k https://localhost:6443/healthz
+
+
+
+7.部署calico网络插件
+https://kubernetes.io/docs/concepts/cluster-administration/addons/
+
+下载：https://docs.projectcalico.org/v3.9/manifests/calico.yaml
+
+wget https://docs.projectcalico.org/v3.9/manifests/calico.yaml
+
+查看需要拉取的镜像
+cat calico.yaml |grep image
+
+
+拉取镜像
+docker pull calico/cni:v3.9.3
+docker pull calico/pod2daemon-flexvol:v3.9.3
+docker pull calico/node:v3.9.3
+docker pull calico/kube-controllers:v3.9.3
+
+安装 
+kubectl apply -f https://docs.projectcalico.org/v3.9/manifests/calico.yaml
+
+
+
+确认一下calico是否安装成功【一定要等待所有的pod都成功了，处于ready状态再往下进行，不然会报错】
+kubectl get pods --all-namespaces -w
+
+8.加入集群
+manager上执行监听
+kubectl get nodes -w
+ 
+node1/node2 执行，在manager 监听节点启动成功，再下一个执行。
+kubeadm join 192.168.2.14:6443 --token kffmci.7gpim50adxzewwcs \
+    --discovery-token-ca-cert-hash sha256:31220696c0c368e42ce8f88d74c9b486aa5072824b529367d0f7f3aca39f0c53
+
+
+m      Ready      master   18m     v1.14.0
+w2     Ready      <none>   2m30s   v1.14.0
+w2     Ready      <none>   2m30s   v1.14.0
+w2     Ready      <none>   2m34s   v1.14.0
+w1     Ready      <none>   4m31s   v1.14.0
+到此kubernets 集群安装完成
