@@ -62,7 +62,7 @@ passwd  修改root账号密码
 
 systemctl restart sshd   一定要重启
 
-通过远程可以访问 该虚拟主机的 ssh  直连接宿主机ip+端口
+通过远程可以访问 该虚拟主机的 ssh  直连接宿主机ip+端口（随机分配的）
 
 vi /etc/sysconfig/network-scripts/ifcfg-eth1
 
@@ -79,13 +79,13 @@ DNS1=192.168.2.1
 systemctl restart network  执行两次，
 ip a  查看eth1的ip地址是否已经刷新，与设置的一致。
 
-通过ip + port(22)访问。
+通过ip + port(22默认)访问。
 
 其他两台，创建文件夹kubernets-node1,kubernets-node2,在不同文件下创建 box 名称为  centos/k8s-node1  centos/k8s-node2
 vagrant box add centos/k8s-manager f:\docker\CentOS-7-x86_64-Vagrant-1905_01.VirtualBox.box
 vagrant init centos/k8s-manager
 
-centos/k8s-manager 替换 centos/k8s-node1/centos/k8s-node2 其他安装前面执行，修改ip
+centos/k8s-manager 替换 centos/k8s-node1/centos/k8s-node2 其他安装按照前面执行，注意修改ip
 
 三、安装需要的软件
 更新yum源
