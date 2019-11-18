@@ -10,17 +10,20 @@ kubernets 集群安装步骤，使用阿里云加速器，镜像等，无需科�
 一、三台机器下载文件 
 
 master机器：
+
 hosts_master.sh
 kubernets-cluster.sh
 kubeadm.sh
 master-init.sh
 
 node1机器：
+
 hosts_node1.sh	
 kubernets-cluster.sh
 kubeadm.sh
 
 node2机器：
+
 hosts_node2.sh	
 kubernets-cluster.sh
 kubeadm.sh
