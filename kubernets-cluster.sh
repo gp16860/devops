@@ -67,8 +67,3 @@ systemctl enable kubelet && systemctl start kubelet
 sh ./kubeadm.sh
 
 
-
-
-
-
-
