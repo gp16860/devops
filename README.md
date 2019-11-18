@@ -29,10 +29,14 @@ kubernets-cluster.sh
 kubeadm.sh
 
 
-二、脚本执行顺序：
+二、脚本执行顺序： 
+
 1.三台机器上执行hosts 设置。
+
 2.执行 kubernets-cluster.sh
+
 3.在master机器上执行 master-init.sh
+
 
 执行完成监听master机器节点加入信息。执行是输出  kubeadm join 拷贝出来
 kubectl get nodes -w  监听master加入节点信息
