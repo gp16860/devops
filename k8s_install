@@ -273,7 +273,7 @@ k8s.gcr.io/pause                     3.1                 da86e6ba6ca1        23 
  
 执行，注意修改ip地址
 kubeadm init --kubernetes-version=1.14.0 --apiserver-advertise-address=192.168.2.14 --pod-network-cidr=10.244.0.0/16
-【若要重新初始化集群状态：kubeadm reset，然后再进行上述操作】
+【若要重新初始化集群状态：kubeadm reset，然后再进行上述操作，需要集群的机器上（m,w1,w2）】
 
 保存好最后kubeadm join的信息，执行输出信息的三行命令
 
